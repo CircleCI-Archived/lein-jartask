@@ -82,7 +82,7 @@
 
 (defn parse-args [args]
   (let [[_ coord rest-args] (re-find #"(\[.+\])(.+)" (str/join " " args))
-        rest-args (str/split rest-args #" ")]
+        rest-args (str/split (str/trim rest-args) #" ")]
     {:coord (parse-coord coord)
      :task (first rest-args)
      :task-args (rest rest-args)}))

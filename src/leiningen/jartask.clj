@@ -1,5 +1,6 @@
 (ns leiningen.jartask
   (:require [leiningen.core.main :as main]
+            [clojure.string :as str]
             [cemerick.pomegranate.aether :as aether]
             [clojure.tools.reader :as reader]
             [clojure.tools.reader.reader-types :as rt]
@@ -65,7 +66,7 @@
        ;; return it to original state
        (ns-unmap 'leiningen.core.project 'project)
        (leiningen.core.project/init-profiles (leiningen.core.project/project-with-profiles @project) profiles)))
-  ([contents] (read-project contents [:default])))
+  ([contents] (load-project contents [:default])))
 
 (defn project-from-jar
   "Given the local path to the jar file, read and return the project.clj"
@@ -75,10 +76,22 @@
       (with-open [project-stream (.getInputStream jar project-entry)]
         (load-project (slurp project-stream))))))
 
+;; (defn parse-coord [args]
+;;   {:coord coord
+;;    :rest-args rest-args})
+
+(defn parse-coord [coord-str]
+  (let [[_ name version] (re-find #"\[([./\w]+) (.+)\]" coord-str)]
+    (println name)
+    (println version)
+    [(symbol name) (str version)]))
+
 (defn parse-args [args]
-  {:coord []
-   :task ""
-   :task-args []})
+  (let [[_ coord rest-args] (re-find #"(\[.+\])(.+)" (str/join " " args))
+        rest-args (str/split rest-args #" ")]
+    {:coord (parse-coord coord)
+     :task (first rest-args)
+     :task-args (rest rest-args)}))
 
 (defn run [project task task-args]
   (main/apply-task project task task-args))
@@ -90,4 +103,7 @@
 
   lein jartask [circleci/artifacts \"0.1.21\"] run"
   [jartask-project & args]
-  (println args))
+  (let [{:keys [coord task task-args]} (parse-args args)]
+    (let [jar-path (jar-path jartask-project coord)
+          project (project-from-jar jar-path)]
+      (main/apply-task task project task-args))))

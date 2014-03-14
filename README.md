@@ -16,7 +16,7 @@ This will download [foo/bar "1.2.3"] if necessary, and run the `lein run :baz` t
 
 ## License
 
-Copyright © 2014 FIXME
+Copyright © 2014 CircleCI
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.

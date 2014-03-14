@@ -78,8 +78,6 @@
 
 (defn parse-coord [coord-str]
   (let [[_ name version] (re-find #"\[([./\w]+) (.+)\]" coord-str)]
-    (println name)
-    (println version)
     [(symbol name) (str version)]))
 
 (defn parse-args [args]

@@ -25,7 +25,7 @@
   [project coord]
   (->
    (resolve-coord project coord)
-   (get '[circle/artifacts "0.1.14-4b4870d"])
+   (get coord)
    first
    meta
    :file))

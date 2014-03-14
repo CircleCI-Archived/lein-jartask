@@ -76,10 +76,6 @@
       (with-open [project-stream (.getInputStream jar project-entry)]
         (load-project (slurp project-stream))))))
 
-;; (defn parse-coord [args]
-;;   {:coord coord
-;;    :rest-args rest-args})
-
 (defn parse-coord [coord-str]
   (let [[_ name version] (re-find #"\[([./\w]+) (.+)\]" coord-str)]
     (println name)

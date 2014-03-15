@@ -42,24 +42,24 @@
 (defn create-temp-dir [prefix]
   (Files/createTempDirectory "foo" empty-file-attrs))
 
-(defn extract-jar
-  "Extract the contents of the jar to dir. Dir must already exist"
+(defn extract-project
+  "Extract the project.clj to dir. Dir must already exist"
   [jar dir]
   (with-open [jar (JarFile. jar)]
-    (doseq [e (enumeration-seq (.entries jar))]
-      (let [dest-name (.getName e)
-            dest-file (File. (str dir File/separator dest-name))
-            dest-path (.toPath dest-file)]
-        (Files/createDirectories (.getParent dest-path) empty-file-attrs)
-        (with-open [i (.getInputStream jar e)]
-          (io/copy i dest-file))))))
+    (let [entry (.getEntry jar "project.clj")
+          dest-name (.getName entry)
+          dest-file (File. (str dir File/separator dest-name))
+          dest-path (.toPath dest-file)]
+      (Files/createDirectories (.getParent dest-path) empty-file-attrs)
+      (with-open [i (.getInputStream jar entry)]
+        (io/copy i dest-file)))))
 
 (defmacro with-temp-jar-dir
   "Extracts the jar to a temp dir, binds 'path to the extracted path, runs the body, deletes the temp dir"
   [[path jar-path] & body]
   `(let [temp-dir# (create-temp-dir "jartask")]
      (try
-       (let [_# (extract-jar ~jar-path temp-dir#)
+       (let [_# (extract-project ~jar-path temp-dir#)
              ~path temp-dir#]
          ~@body)
        ;; (finally

@@ -1,13 +1,18 @@
 (ns leiningen.jartask
   (:require [leiningen.core.main :as main]
-            [clojure.string :as str]
+            [leiningen.core.project :as project]
             [cemerick.pomegranate.aether :as aether]
-            [clojure.tools.reader :as reader]
-            [clojure.tools.reader.reader-types :as rt]
-            [clojure.tools.reader.edn :as edn])
+            [clojure.string :as str]
+            [clojure.pprint :refer (pprint)]
+            [clojure.java.io :as io]
+            [me.raynes.fs :as fs])
   (:import java.util.jar.JarFile
-           java.io.PushbackReader
-           java.io.StringReader))
+           (java.io PushbackReader
+                    StringReader
+                    File)
+           (java.nio.file Files
+                          Path
+                          attribute.FileAttribute)))
 
 (defn project-repo-map
   "Returns the map of all repos. Use for resolving, not deploying"
@@ -23,58 +28,44 @@
 (defn jar-path
   "Resolve the coordinates, returns the path to the jar file locally"
   [project coord]
-  (->
-   (resolve-coord project coord)
-   (get coord)
-   first
-   meta
-   :file))
+  (->> (resolve-coord project coord)
+       keys
+       (filter #(= % coord))
+       first
+       meta
+       :file))
 
-(defn repeat-while
-  "(repeatedly) calls f, while pred returns true. With no pred, calls f while it returns truthy. not lazy."
-  ([f]
-     (repeat-while identity f))
-  ([pred f]
-     (doall (take-while pred (repeatedly f)))))
+(def empty-file-attrs
+  ;; several Files/ methods need this
+  (into-array FileAttribute []))
 
-(defn read-seq
-  "Like clojure.core/read-string, but returns a seq of forms, reading as much as possible"
-  [string & {:keys [safe?]
-             :or {safe? true}}]
-  (let [str-reader (rt/string-push-back-reader string)
-        pushback-reader (rt/indexing-push-back-reader str-reader)]
-    (repeat-while #(if safe?
-                     (edn/read {:eof nil} pushback-reader)
-                     (reader/read pushback-reader false nil true)))))
+(defn create-temp-dir [prefix]
+  (Files/createTempDirectory "foo" empty-file-attrs))
 
-(defn load-project
-  "Hacky way of eval'ing the project approxmiately the way lein does, until we get a patch in"
-  ([contents profiles]
-     (binding [*ns* (find-ns 'leiningen.core.project)]
-       (try (->>
-             contents
-             (read-seq)
-             (apply list 'do)
-             (eval))
+(defn extract-jar
+  "Extract the contents of the jar to dir. Dir must already exist"
+  [jar dir]
+  (with-open [jar (JarFile. jar)]
+    (doseq [e (enumeration-seq (.entries jar))]
+      (let [dest-name (.getName e)
+            dest-file (File. (str dir File/separator dest-name))
+            dest-path (.toPath dest-file)]
+        (Files/createDirectories (.getParent dest-path) empty-file-attrs)
+        (with-open [i (.getInputStream jar e)]
+          (io/copy i dest-file))))))
 
-            (catch Exception e
-              (println (.getMessage e))
-              (throw (Exception. (format "Error reading project") e)))))
-     (let [project (resolve 'leiningen.core.project/project)]
-       (when-not project
-         (throw (Exception. (format "project must define project map" project))))
-       ;; return it to original state
-       (ns-unmap 'leiningen.core.project 'project)
-       (leiningen.core.project/init-profiles (leiningen.core.project/project-with-profiles @project) profiles)))
-  ([contents] (load-project contents [:default])))
-
-(defn project-from-jar
-  "Given the local path to the jar file, read and return the project.clj"
-  [jar-path]
-  (with-open [jar (JarFile. jar-path)]
-    (let [project-entry (.getEntry jar "project.clj")]
-      (with-open [project-stream (.getInputStream jar project-entry)]
-        (load-project (slurp project-stream))))))
+(defmacro with-temp-jar-dir
+  "Extracts the jar to a temp dir, binds 'path to the extracted path, runs the body, deletes the temp dir"
+  [[path jar-path] & body]
+  `(let [temp-dir# (create-temp-dir "jartask")]
+     (try
+       (let [_# (extract-jar ~jar-path temp-dir#)
+             ~path temp-dir#]
+         ~@body)
+       ;; (finally
+       ;;   (println "deleting temp-dir")
+       ;;   (fs/delete-dir temp-dir#))
+       )))
 
 (defn parse-coord [coord-str]
   (let [[_ name version] (re-find #"\[([./\w]+) (.+)\]" coord-str)]
@@ -90,7 +81,7 @@
 (defn run [project task task-args]
   (main/apply-task project task task-args))
 
-(defn jartask
+(defn ^:no-project-needed ^:higher-order jartask
   "Run the lein task contained in the project.clj for the given jar
 
   Usage:
@@ -98,6 +89,12 @@
   lein jartask [circleci/artifacts \"0.1.21\"] run"
   [jartask-project & args]
   (let [{:keys [coord task task-args]} (parse-args args)]
-    (let [jar-path (jar-path jartask-project coord)
-          project (project-from-jar jar-path)]
-      (main/apply-task task project task-args))))
+    (let [jar-path (jar-path jartask-project coord)]
+      (assert jar-path)
+      (with-temp-jar-dir [temp-dir jar-path]
+        (let [project-path (str temp-dir "/project.clj")
+              project (-> (project/read project-path)
+                          (update-in [:profiles :jartask :dependencies] conj coord)
+                          (project/project-with-profiles)
+                          (project/merge-profiles [:jartask]))]
+          (main/apply-task task project task-args))))))

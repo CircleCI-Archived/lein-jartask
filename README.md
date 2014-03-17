@@ -6,7 +6,7 @@ A Leiningen plugin to run arbitrary lein tasks contained in other jars.
 
     $ lein jartask [foo/bar "1.2.3"] run :baz
 
-This will download [foo/bar "1.2.3"] if necessary, and run the `lein run :baz` task, defined in foo/bar's project.clj
+This will download `[foo/bar "1.2.3"]` if necessary, and run the `lein run :baz` task, defined in foo/bar's project.clj
 
 ## License
 

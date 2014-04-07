@@ -55,17 +55,14 @@
         (io/copy i dest-file)))))
 
 (defmacro with-temp-jar-dir
-  "Extracts the jar to a temp dir, binds 'path to the extracted path, runs the body, deletes the temp dir"
+  "Extracts the jar to a temp dir, binds 'path to the extracted path, runs the body"
   [[path jar-path] & body]
   `(let [temp-dir# (create-temp-dir "jartask")]
+     (println "temp-dir is" temp-dir#)
      (try
        (let [_# (extract-project ~jar-path temp-dir#)
              ~path temp-dir#]
-         ~@body)
-       ;; (finally
-       ;;   (println "deleting temp-dir")
-       ;;   (fs/delete-dir temp-dir#))
-       )))
+         ~@body))))
 
 (defn parse-coord [coord-str]
   (let [[_ name version] (re-find #"\[([./\w]+) (.+)\]" coord-str)]

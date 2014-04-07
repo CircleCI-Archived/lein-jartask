@@ -62,9 +62,10 @@
        (let [_# (extract-project ~jar-path temp-dir#)
              ~path temp-dir#]
          ~@body)
-       (finally
-         (println "deleting temp-dir")
-         (fs/delete-dir temp-dir#)))))
+       ;; (finally
+       ;;   (println "deleting temp-dir")
+       ;;   (fs/delete-dir temp-dir#))
+       )))
 
 (defn parse-coord [coord-str]
   (let [[_ name version] (re-find #"\[([./\w]+) (.+)\]" coord-str)]

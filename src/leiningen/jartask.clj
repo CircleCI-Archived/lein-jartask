@@ -39,7 +39,7 @@
   (into-array FileAttribute []))
 
 (defn create-temp-dir [prefix]
-  (Files/createTempDirectory "foo" empty-file-attrs))
+  (Files/createTempDirectory prefix empty-file-attrs))
 
 (defn extract-file-from-jar
   "Extract a file to dir. Dir must already exist"

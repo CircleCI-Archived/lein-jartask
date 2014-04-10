@@ -25,7 +25,7 @@
   [project coord]
   (aether/resolve-dependencies :coordinates [coord] :repositories (project-repo-map project)))
 
-(defn jar-path
+(defn resolve-jar-path
   "Resolve the coordinates, returns the path to the jar file locally"
   [project coord]
   (->> (resolve-coord project coord)
@@ -42,11 +42,11 @@
 (defn create-temp-dir [prefix]
   (Files/createTempDirectory "foo" empty-file-attrs))
 
-(defn extract-project
-  "Extract the project.clj to dir. Dir must already exist"
-  [jar dir]
+(defn extract-file-from-jar
+  "Extract a file to dir. Dir must already exist"
+  [jar dir filename]
   (with-open [jar (JarFile. jar)]
-    (let [entry (.getEntry jar "project.clj")
+    (let [entry (.getEntry jar filename)
           dest-name (.getName entry)
           dest-file (File. (str dir File/separator dest-name))
           dest-path (.toPath dest-file)]
@@ -54,26 +54,33 @@
       (with-open [i (.getInputStream jar entry)]
         (io/copy i dest-file)))))
 
-(defmacro with-temp-jar-dir
-  "Extracts the jar to a temp dir, binds 'path to the extracted path, runs the body"
-  [[path jar-path] & body]
-  `(let [temp-dir# (create-temp-dir "jartask")]
-     (println "temp-dir is" temp-dir#)
-     (try
-       (let [_# (extract-project ~jar-path temp-dir#)
-             ~path temp-dir#]
-         ~@body))))
-
-(defn parse-coord [coord-str]
-  (let [[_ name version] (re-find #"\[([./\w]+) (.+)\]" coord-str)]
+(defn parse-coord-str [coord-str]
+  (let [[_ name version] (or (re-find #"\[([./\w]+) ([^\"]+)\]" coord-str)
+                             (re-find #"\[([./\w]+) \"([^\"]+)\"\]" coord-str))]
     [(symbol name) (str version)]))
 
 (defn parse-args [args]
-  (let [[_ coord rest-args] (re-find #"(\[.+\])(.+)" (str/join " " args))
-        rest-args (str/split (str/trim rest-args) #" ")]
-    {:coord (parse-coord coord)
-     :task (first rest-args)
-     :task-args (rest rest-args)}))
+  (let [[_ coord rest-args] (re-find #"^(\[.+\])(.+)" (str/join " " args))
+        rest-args (when rest-args
+                    (str/split (str/trim rest-args) #" "))]
+    (when coord
+      {:coord (parse-coord-str coord)
+       :task (first rest-args)
+       :task-args (rest rest-args)})))
+
+(defn exec [jartask-project {:keys [coord task task-args]
+                             :as args}]
+  (let [jar-path (resolve-jar-path jartask-project coord)
+        _ (when-not jar-path
+            (main/abort (format "couldn't resolve %s" coord)))
+        project-dir (create-temp-dir "jarbin")
+        _ (extract-file-from-jar jar-path project-dir "project.clj")
+        project-path (str/join "/" [project-dir "project.clj"])
+        project (-> (project/read project-path)
+                    (update-in [:profiles :jartask :dependencies] conj coord)
+                    (project/project-with-profiles)
+                    (project/merge-profiles [:jartask]))]
+    (main/apply-task task project task-args)))
 
 (defn run [project task task-args]
   (main/apply-task project task task-args))
@@ -85,13 +92,6 @@
 
   lein jartask [circleci/artifacts \"0.1.21\"] run"
   [jartask-project & args]
-  (let [{:keys [coord task task-args]} (parse-args args)]
-    (let [jar-path (jar-path jartask-project coord)]
-      (assert jar-path)
-      (with-temp-jar-dir [temp-dir jar-path]
-        (let [project-path (str temp-dir "/project.clj")
-              project (-> (project/read project-path)
-                          (update-in [:profiles :jartask :dependencies] conj coord)
-                          (project/project-with-profiles)
-                          (project/merge-profiles [:jartask]))]
-          (main/apply-task task project task-args))))))
+  (if-let [args (parse-args)]
+    (exec jartask-project args)
+    (main/abort "couldn't parse arguments")))

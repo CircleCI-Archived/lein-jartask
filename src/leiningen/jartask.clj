@@ -91,6 +91,6 @@
 
   lein jartask [circleci/artifacts \"0.1.21\"] run"
   [jartask-project & args]
-  (if-let [args (parse-args)]
+  (if-let [args (parse-args args)]
     (exec jartask-project args)
     (main/abort "couldn't parse arguments")))

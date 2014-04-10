@@ -4,8 +4,7 @@
             [cemerick.pomegranate.aether :as aether]
             [clojure.string :as str]
             [clojure.pprint :refer (pprint)]
-            [clojure.java.io :as io]
-            [me.raynes.fs :as fs])
+            [clojure.java.io :as io])
   (:import java.util.jar.JarFile
            (java.io PushbackReader
                     StringReader

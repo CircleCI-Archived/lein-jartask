@@ -72,7 +72,7 @@
   (let [jar-path (resolve-jar-path jartask-project coord)
         _ (when-not jar-path
             (main/abort (format "couldn't resolve %s" coord)))
-        project-dir (create-temp-dir "jarbin")
+        project-dir (create-temp-dir "jartask")
         _ (extract-file-from-jar jar-path project-dir "project.clj")
         project-path (str/join "/" [project-dir "project.clj"])
         project (-> (project/read project-path)

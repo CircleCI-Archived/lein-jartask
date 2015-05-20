@@ -54,8 +54,8 @@
         (io/copy i dest-file)))))
 
 (defn parse-coord-str [coord-str]
-  (let [[_ name version] (or (re-find #"\[([./\w]+) ([^\"]+)\]" coord-str)
-                             (re-find #"\[([./\w]+) \"([^\"]+)\"\]" coord-str))]
+  (let [[_ name version] (or (re-find #"\[([./\w-]+) ([^\"]+)\]" coord-str)
+                             (re-find #"\[([./\w-]+) \"([^\"]+)\"\]" coord-str))]
     [(symbol name) (str version)]))
 
 (defn parse-args [args]
